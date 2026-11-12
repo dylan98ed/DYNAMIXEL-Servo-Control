@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>H42 · Panel de control DYNAMIXEL</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">H<span>42</span></span>
+      <div>
+        <div class="brand-title">Panel de control <span>DYNAMIXEL</span></div>
+        <div class="brand-caption">ESP32-S3 · SP3485 · H42-20-S300-R · Protocolo 2.0</div>
+      </div>
+    </div>
+    <div class="status-group">
+      <span id="serialStatus" class="status-pill disconnected"><span class="status-dot"></span>COM desconectado</span>
+      <span id="servoStatus" class="status-pill neutral"><span class="status-dot"></span>Sin telemetría</span>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="control-col">
+      <section class="panel">
+        <h2><span class="number">01</span> Conexión USB</h2>
+        <div class="hint">Cerrá el Monitor Serie de Arduino antes de abrir el puerto.</div>
+        <label for="portSelect">Puerto de la ESP32</label>
+        <div class="hstack">
+          <select id="portSelect" aria-label="Puerto COM"><option value="">Buscando puertos…</option></select>
+          <button id="refreshPorts" type="button" class="button icon-button" title="Actualizar puertos">↻</button>
+        </div>
+        <div class="hstack connection-controls">
+          <button id="connectBtn" class="button primary flex" type="button">Conectar</button>
+          <button id="disconnectBtn" class="button ghost flex" type="button" disabled>Desconectar</button>
+        </div>
+        <p class="microcopy">USB a ESP32: <strong>115200 baudios</strong>. El baudrate RS-485 del servo se configura en el firmware.</p>
+      </section>
+
+      <section class="panel">
+        <h2><span class="number">02</span> Control del servo</h2>
+        <div class="mode-row">
+          <button class="button selector" data-cmd="MODE PC">MODE PC</button>
+          <button class="button selector" data-cmd="MODE POT">MODE POT</button>
+        </div>
+        <label for="positionInput">Posición objetivo (°)</label>
+        <div class="input-action">
+          <input type="number" id="positionInput" step="1" min="-180" max="180" value="0">
+          <button class="button primary" data-send="POS" data-input="positionInput">Enviar POS</button>
+        </div>
+        <div class="slider-line">
+          <span>−180°</span><input id="posSlider" type="range" min="-180" max="180" step="1" value="0"><span>+180°</span>
+        </div>
+        <div class="small-grid">
+          <div><label for="minInput">Mínimo (°)</label><div class="input-action"><input id="minInput" type="number" min="-180" max="180" value="-50" step="1"><button class="button" data-send="MIN" data-input="minInput">MIN</button></div></div>
+          <div><label for="maxInput">Máximo (°)</label><div class="input-action"><input id="maxInput" type="number" min="-180" max="180" value="50" step="1"><button class="button" data-send="MAX" data-input="maxInput">MAX</button></div></div>
+          <div><label for="velInput">Velocidad (rpm)</label><div class="input-action"><input id="velInput" type="number" min="0.5" step="0.5" value="5"><button class="button" data-send="VEL" data-input="velInput">VEL</button></div></div>
+          <div><label for="accInput">Aceleración (RAW)</label><div class="input-action"><input id="accInput" type="number" min="1" step="1" value="5"><button class="button" data-send="ACC" data-input="accInput">ACC</button></div></div>
+        </div>
+        <div class="safety-actions">
+          <button type="button" class="button arm" data-cmd="ARM">ARM · torque ON</button>
+          <button type="button" class="button stop" data-cmd="STOP">STOP</button>
+          <button type="button" class="button off" data-cmd="OFF">OFF · torque OFF</button>
+        </div>
+        <p class="microcopy warning">STOP mantiene una posición: <strong>no es una parada de emergencia.</strong> OFF libera el eje. Los límites efectivos los valida la ESP32.</p>
+      </section>
+
+      <section class="panel">
+        <h2><span class="number">03</span> Diagnóstico</h2>
+        <div class="button-grid">
+          <button class="button" data-cmd="PING">PING</button>
+          <button class="button" data-cmd="INFO">INFO</button>
+          <button class="button" data-cmd="STATUS">STATUS</button>
+          <button class="button" data-cmd="HELP">HELP</button>
+          <button class="button" data-cmd="STREAM ON">STREAM ON</button>
+          <button class="button" data-cmd="STREAM OFF">STREAM OFF</button>
+        </div>
+        <label for="rateInput">Período de telemetría (ms)</label>
+        <div class="input-action"><input id="rateInput" type="number" min="100" max="5000" step="100" value="500"><button class="button" data-send="RATE" data-input="rateInput">RATE</button></div>
+      </section>
+    </aside>
+
+    <main class="monitor-col">
+      <section class="overview-title">
+        <div><div class="eyebrow">MONITOREO EN TIEMPO REAL</div><h1>Estado del servomotor</h1></div>
+        <div class="toolbar"><span id="lastUpdate" class="last-update">Sin lecturas</span><a class="button outline" href="/api/export.csv" id="csvBtn">Exportar CSV</a></div>
+      </section>
+
+      <div class="kpi-grid">
+        <article class="metric"><div class="metric-label">Posición real</div><div class="metric-value"><span id="kpiPos">—</span><small>°</small></div></article>
+        <article class="metric"><div class="metric-label">Posición objetivo</div><div class="metric-value"><span id="kpiObj">—</span><small>°</small></div></article>
+        <article class="metric"><div class="metric-label">Velocidad</div><div class="metric-value"><span id="kpiVel">—</span><small>rpm</small></div></article>
+        <article class="metric"><div class="metric-label">Corriente</div><div class="metric-value"><span id="kpiCurrent">—</span><small>mA</small></div></article>
+        <article class="metric"><div class="metric-label">Tensión</div><div class="metric-value"><span id="kpiVoltage">—</span><small>V</small></div></article>
+        <article class="metric"><div class="metric-label">Temperatura</div><div class="metric-value"><span id="kpiTemp">—</span><small>°C</small></div></article>
+        <article class="metric"><div class="metric-label">Torque / movimiento</div><div class="metric-value small"><span id="kpiTorque">— / —</span></div></article>
+        <article class="metric"><div class="metric-label">Error de hardware</div><div class="metric-value small"><span id="kpiHw">—</span></div></article>
+      </div>
+
+      <section class="panel chart-panel">
+        <div class="chart-header"><div><h2>Posición angular</h2><p>Consigna enviada y posición medida por el encoder</p></div><div class="legend"><span><i class="legend-line teal"></i> Real</span><span><i class="legend-line orange"></i> Objetivo</span></div></div>
+        <canvas id="positionChart" role="img" aria-label="Gráfico de la posición real y objetivo frente al tiempo"></canvas>
+      </section>
+
+      <section class="panel chart-panel compact-chart">
+        <div class="chart-header"><div><h2>Velocidad y corriente</h2><p>Variación temporal de la respuesta del servo</p></div><div class="legend"><span><i class="legend-line blue"></i> rpm</span><span><i class="legend-line pink"></i> mA</span></div></div>
+        <canvas id="dynamicChart" role="img" aria-label="Gráfico de velocidad y corriente del servomotor"></canvas>
+      </section>
+
+      <section class="panel terminal-panel">
+        <div class="terminal-heading"><div><h2>Terminal serie</h2><div class="hint">Mensajes recibidos de la ESP32 y comandos enviados desde Flask.</div></div><button id="clearConsole" class="button ghost">Limpiar vista</button></div>
+        <div id="console" class="console" role="log" aria-live="off"><div class="console-placeholder">Conectá la ESP32 para comenzar.</div></div>
+        <form id="manualForm" class="manual-form"><span class="prompt">&gt;</span><input id="manualInput" autocomplete="off" spellcheck="false" placeholder="Escribí un comando, por ejemplo: POS 45"><button class="button primary" type="submit">Enviar</button></form>
+      </section>
+      <footer>Interfaz local Flask + PySerial · Compatible con Control_H42_PC_Arduino.ino · Sin servicios externos</footer>
+    </main>
+  </div>
+</div>
+<div id="toast" class="toast" role="status"></div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
